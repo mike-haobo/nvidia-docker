@@ -1,12 +1,13 @@
 ARG VERSION_ID
-FROM debian:${VERSION_ID}
+FROM ppc64le/ubuntu:${VERSION_ID}
 
 # packaging dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
         dh-make \
         fakeroot \
         build-essential \
-        devscripts && \
+        devscripts \
+        lsb-release && \
     rm -rf /var/lib/apt/lists/*
 
 # packaging
@@ -18,8 +19,8 @@ ARG DOCKER_VERSION
 ENV DEBFULLNAME "NVIDIA CORPORATION"
 ENV DEBEMAIL "cudatools@nvidia.com"
 ENV REVISION "$PKG_VERS-$PKG_REV"
-ENV RUNTIME_VERSION $RUNTIME_VERSION
 ENV DOCKER_VERSION $DOCKER_VERSION
+ENV RUNTIME_VERSION $RUNTIME_VERSION
 ENV SECTION ""
 
 # output directory
@@ -33,9 +34,10 @@ COPY daemon.json $DIST_DIR/daemon.json
 WORKDIR $DIST_DIR
 COPY debian ./debian
 
-RUN sed -i "s;@VERSION@;${REVISION#*+};" debian/changelog && \
-    if [ "$REVISION" != "$(dpkg-parsechangelog --show-field=Version)" ]; then exit 1; fi
+RUN sed -i "s;@VERSION@;${REVISION};" debian/changelog && \
+    sed -i "s;@VERSION@;${PKG_VERS};" $DIST_DIR/nvidia-docker && \
+    if [ "$REVISION" != "$(dpkg-parsechangelog --show-field=Version)" ]; then echo "$(dpkg-parsechangelog --show-field=Version)" && exit 1; fi
 
-CMD export DISTRIB="unstable" && \
+CMD export DISTRIB="$(lsb_release -cs)" && \
     debuild --preserve-env --dpkg-buildpackage-hook='sh debian/prepare' -i -us -uc -b && \
     mv /tmp/*.deb /dist
